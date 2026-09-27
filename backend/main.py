@@ -13,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 
-import auth
 from agent import run_chat
 from models import (
     ChatMessage,
@@ -27,16 +26,28 @@ from models import (
 )
 from tools import (
     DATA_DIR,
+    DUMMY_HASH,
+    EMAIL,
+    SESSION_COOKIE,
+    SESSION_TTL_SECONDS,
     AgentDeps,
     ChatNotConfigured,
+    clear_failures,
     connect,
+    create_session_token,
     ensure_chat_index,
     get_product,
+    hash_password,
+    is_locked_out,
     list_products,
     load_chat_history,
     load_customer,
+    password_problems,
+    read_session_token,
+    record_failure,
     resolve_current_product,
     save_chat_turn,
+    verify_password,
 )
 
 log = logging.getLogger("campus_customs")
@@ -89,9 +100,9 @@ def to_public(row: sqlite3.Row) -> UserPublic:
 
 def set_session(response: Response, user_id: int) -> None:
     response.set_cookie(
-        auth.SESSION_COOKIE,
-        auth.create_session_token(user_id),
-        max_age=auth.SESSION_TTL_SECONDS,
+        SESSION_COOKIE,
+        create_session_token(user_id),
+        max_age=SESSION_TTL_SECONDS,
         httponly=True,  # not readable from JavaScript
         samesite="lax",
         # secure=True once served over HTTPS
@@ -104,12 +115,12 @@ def register(body: RegisterRequest, response: Response) -> UserPublic:
     email = body.email.strip().lower()
     if not first or not last:
         raise HTTPException(422, "First and last name are required.")
-    if not auth.EMAIL.match(email):
+    if not EMAIL.match(email):
         raise HTTPException(422, "Enter a valid email address.")
-    if problems := auth.password_problems(body.password):
+    if problems := password_problems(body.password):
         raise HTTPException(422, "Password needs " + ", ".join(problems) + ".")
 
-    password_hash = auth.hash_password(body.password)
+    password_hash = hash_password(body.password)
     with connect(write=True) as conn:
         if conn.execute("SELECT 1 FROM users WHERE lower(email) = ?", (email,)).fetchone():
             raise HTTPException(409, "An account with that email already exists.")
@@ -126,23 +137,23 @@ def register(body: RegisterRequest, response: Response) -> UserPublic:
 @app.post("/api/auth/login", response_model=UserPublic)
 def login(body: LoginRequest, response: Response) -> UserPublic:
     email = body.email.strip().lower()
-    if auth.is_locked_out(email):
+    if is_locked_out(email):
         raise HTTPException(429, "Too many failed attempts. Try again in a minute.")
     with connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE lower(email) = ?", (email,)).fetchone()
     # Always run a hash check so response time doesn't reveal whether the email exists.
-    ok = auth.verify_password(body.password, row["password_hash"] if row else auth.DUMMY_HASH)
+    ok = verify_password(body.password, row["password_hash"] if row else DUMMY_HASH)
     if not row or not ok:
-        auth.record_failure(email)
+        record_failure(email)
         raise HTTPException(401, "Incorrect email or password.")
-    auth.clear_failures(email)
+    clear_failures(email)
     set_session(response, row["id"])
     return to_public(row)
 
 
 @app.post("/api/auth/logout", status_code=204)
 def logout(response: Response) -> None:
-    response.delete_cookie(auth.SESSION_COOKIE)
+    response.delete_cookie(SESSION_COOKIE)
 
 
 @app.get("/api/auth/me", response_model=UserPublic)
@@ -155,7 +166,7 @@ def me(cc_session: str | None = Cookie(default=None)) -> UserPublic:
 
 def current_user(cc_session: str | None) -> UserPublic | None:
     """The logged-in user for a session cookie, or None for guests."""
-    user_id = auth.read_session_token(cc_session) if cc_session else None
+    user_id = read_session_token(cc_session) if cc_session else None
     if user_id is None:
         return None
     with connect() as conn:

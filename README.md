@@ -22,9 +22,7 @@ hw4/
 │   ├── agent.py             # ┐
 │   ├── models.py            # │ the agent: wiring, structured types,
 │   ├── tools.py             # │ tools, and system prompt
-│   ├── prompts/prompt.md    # ┘
-│   ├── auth.py              # password hashing + signed session cookies (used by main.py)
-│   └── benchmark.py         # dev-only: agent benchmark used for output/usability.md
+│   └── prompts/prompt.md    # ┘
 └── output/
     ├── harness.md           # full system reference (start here) + build log
     ├── design.md            # Problem 10 design refresh

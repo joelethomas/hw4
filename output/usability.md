@@ -4,7 +4,7 @@
 
 I reviewed the whole running app (React frontend, FastAPI backend, and the PydanticAI agent) as a shopper would use it, and I measured it before changing anything.
 
-- **Agent benchmark:** [`backend/benchmark.py`](../backend/benchmark.py) runs 10 representative shopper questions through the real agent twice each (20 turns), against a copy of the database. It records, per question, latency, model round trips, tool calls, input/cached/output tokens, validator retries, unwanted page takeovers, and a pass/fail correctness check. Portkey's response cache is bypassed (`PORTKEY_FORCE_REFRESH=1`) so every timing is a real model call. The raw results are in [`output/bench/`](bench/).
+- **Agent benchmark:** a development benchmark script (kept out of the submitted repo so it matches the required layout) ran 10 representative shopper questions through the real agent twice each (20 turns), against a copy of the database. It recorded, per question, latency, model round trips, tool calls, input/cached/output tokens, validator retries, unwanted page takeovers, and a pass/fail correctness check. Portkey's response cache is bypassed (`PORTKEY_FORCE_REFRESH=1`) so every timing is a real model call. The results are summarised in the tables below.
 - **Products-page search audit:** 20 common shopper searches were run through the page's search logic, and I counted how many return nothing.
 - **Hands-on walkthrough:** I browsed Home → Products → a product page, used the chat as a guest and while logged in, and noted every point of friction.
 
@@ -79,7 +79,7 @@ It all runs in the browser on the 102 products that are already loaded, so filte
 | Quarter-zips in stock in XL | "quarter zip" → **0 results**, and size was only visible on product pages | Quarter-zips chip + Size XL = **2 clicks**, 9 results |
 | Keep filters after viewing a product | Filters lost on Back | Kept (in the URL) |
 
-![Products page with smart search and filters](screens/1_products_filters.png)
+![Products page with smart search and filters](app_check_images/usability_filters.png)
 
 ---
 
@@ -100,7 +100,7 @@ Up to three one-tap **suggested questions** now sit above the chat input ([`fron
 - A chip disappears once its question has been asked, and chips hide while the assistant is thinking.
 - The chips are generated in the browser from the page state, so they cost **no model call**.
 
-![Suggestion chips on a product page](screens/2_chat_chips_product_page.png)
+![Suggestion chips on a product page (under Dan's reply)](app_check_images/inventory.png)
 
 ### Why it helps
 
@@ -144,7 +144,7 @@ Tested in the running app:
 
 ### Results
 
-Benchmark: 11 questions × 3 runs = 33 real model turns before and after, cache bypassed. [`before.json`](bench/before.json) → [`after.json`](bench/after.json).
+Benchmark: 11 questions × 3 runs = 33 real model turns before and after, cache bypassed.
 
 | Metric (per reply) | Before | After | Change |
 |---|---|---|---|
@@ -200,7 +200,7 @@ Every question now takes the minimum of two steps: one lookup, then the answer. 
 | Unwanted page takeovers | **3** | **0** |
 | "Can you write my econ essay?" handled correctly | 0 / 3 (page hijacked each time; offered to "build an outline") | **3 / 3** ("That's outside what I can help with here, but I'd be glad to help you find some Yale gear…") |
 
-**Follow-up suite:** turn-2 questions after "What hoodies do you have?", 5 questions × 3 runs = 15 turns. [`before_followup.json`](bench/before_followup.json) → [`after_followup.json`](bench/after_followup.json).
+**Follow-up suite:** turn-2 questions after "What hoodies do you have?", 5 questions × 3 runs = 15 turns.
 
 | Metric | Before | After |
 |---|---|---|
@@ -227,13 +227,8 @@ Follow-ups also got **faster and cheaper** even though the model now reads about
 | 3 | Fewer round trips (backend) | Mean reply **5.20 → 4.22 s (−19%)**, p90 **−31%**, round trips **−21%**, tool calls **−42%**, cost index **−11%** |
 | 4 | Prompt on every turn + page/on-topic guards (backend) | Follow-up correctness **60% → 100%**, single-question correctness **93.9% → 100%**, unwanted page takeovers **5 → 0**, follow-up reply time **−46%** |
 
-### Reproducing the numbers
+### How the numbers were measured
 
-```bash
-cd backend
-cp ../data/campus_customs.db /tmp/cc_copy.db   # the benchmark never touches the real database
-PORTKEY_FORCE_REFRESH=1 CAMPUS_CUSTOMS_DB=/tmp/cc_copy.db ../.venv/bin/python benchmark.py --label after --runs 3
-PORTKEY_FORCE_REFRESH=1 CAMPUS_CUSTOMS_DB=/tmp/cc_copy.db ../.venv/bin/python benchmark.py --label after_followup --suite followup --runs 3
-```
-
-`output/bench/before*.json` were recorded on the code as it was at the start of Problem 9. `after_speed.json` is an intermediate run after the round-trip changes but before the prompt-order fix. It is kept because it shows the prompt-order problem: cached share fell from 93% to 85% and the cost index *rose* to 2,703, which is what led to finding the missing-prompt bug. The search audit and task numbers in §1 come from running `frontend/src/search.ts` directly with Node against the live `/api/products` data.
+- **Agent numbers (§3–4):** a development benchmark ran against a *copy* of the database with Portkey's response cache bypassed (`PORTKEY_FORCE_REFRESH=1`), so every call was a real model call. The "before" runs used the code as it was at the start of Problem 9. An intermediate run, after the round-trip changes but before the prompt-order fix, showed the cached share *falling* from 93% to 85% and the cost index *rising* to 2,703. That is what led to finding the missing-prompt bug. The script and its raw JSON results were kept out of the submitted repo so it matches the required layout.
+- **Search audit and task numbers (§1):** these came from running `frontend/src/search.ts` directly with Node against the live `/api/products` data.
+- **Screenshots:** from the running app. See also [`app_check.html`](app_check.html), check 3.

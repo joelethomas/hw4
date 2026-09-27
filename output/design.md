@@ -34,4 +34,4 @@ The scroll effects use no animation library: a small hook writes each section's 
 - **A friendly guide at the moment of doubt.** Dan is a recognizable mascot rather than a generic bot icon, so shoppers are more willing to ask. "Ask Dan about this" puts him where purchase questions come up, and he answers from live stock.
 - **A reason to create an account.** The login screens pitch a concrete benefit ("save your chats with Dan"), so returning shoppers can pick up where they left off.
 
-Screenshots: [home hero](screens/10_home_hero.png) · [pinned gallery](screens/10_pinned_gallery.png) · [stats](screens/10_stats.png) · [shop](screens/10_shop.png) · [Dan](screens/10_dan_chat.png) · [phone](screens/10_mobile_home.png)
+Screenshots of the styled site, including product cards, the product page, and Dan's chat, are in [`app_check.html`](app_check.html). The scroll motion is best seen in the running app at http://localhost:5173.

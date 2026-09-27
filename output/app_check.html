@@ -152,7 +152,6 @@
     <h2>Findings from this test run <span class="pass fixed">FOUND &amp; FIXED</span></h2>
     <p>While retaking the out-of-stock screenshot, one chat request failed and Dan showed <i>"The chat assistant is having trouble right now."</i> The server log showed a transient TLS error from the model connection (<code>ssl.SSLError: BAD_RECORD_MAC</code>). The Problem 9 code retried once, <i>immediately</i>, and that retry reused the same broken connection and failed too.</p>
     <p><b>Fix</b> (<code>backend/agent.py</code> → <code>run_chat</code>): up to 3 attempts with short back-offs (0.4 s, 0.8 s), and before the last attempt the agent is rebuilt so it gets a fresh HTTP connection pool. A simulated test (two forced TLS failures, then success) now returns a normal reply. The re-run of both inventory checks passed with no errors (the screenshots above are from that re-run).</p>
-    <p class="muted">Raw test log (questions, replies, API payloads, counts): <a href="app_check_log.json">app_check_log.json</a>.</p>
   </section>
 </main>
 

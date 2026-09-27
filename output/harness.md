@@ -72,7 +72,6 @@ This document explains how the Campus Customs web shop and its AI shopping assis
    ```
 4. **Quick checks:**
    - `cd backend && ../.venv/bin/python agent.py "Do you have navy hoodies in M?"` asks Dan one question from the command line.
-   - Benchmark: `PORTKEY_FORCE_REFRESH=1 CAMPUS_CUSTOMS_DB=/tmp/copy.db ../.venv/bin/python benchmark.py --label run --runs 3`. Always point it at a *copy* of the database.
    - Test users: `test@campuscustoms.yale.edu` with password `password` (seed account).
 
 ## A3. Specs
@@ -227,7 +226,7 @@ Example entry (real):
 }
 ```
 
-A typical turn is 5 entries: `run_start` → `model_response` (tool call) → `tool_results` → `model_response` (final answer) → `run_end`. `benchmark.py` calls the agent directly and doesn't write to the trail, so benchmarks don't flood it.
+A typical turn is 5 entries: `run_start` → `model_response` (tool call) → `tool_results` → `model_response` (final answer) → `run_end`. Only real chat turns (`run_chat`) write to the trail; offline tests that call the agent directly don't, so they don't flood it.
 
 ## A8. API routes and file map
 
@@ -242,12 +241,11 @@ A typical turn is 5 entries: `run_start` → `model_response` (tool call) → `t
 ```
 hw4/
 ├── backend/   main.py (FastAPI) · agent.py (Dan) · tools.py (tools, DB, audit) · models.py (types)
-│              prompts/prompt.md (voice, rules, safety) · auth.py (password hashing, sessions) · benchmark.py (dev)
+│              prompts/prompt.md (voice, rules, safety)
 ├── frontend/  src/pages/* · src/components/* (ChatWidget, ProductCard, NavBar, Footer, OutOfStockBanner)
 │              src/search.ts · src/suggestions.ts · src/motion/* · src/api.ts (typed contract) · public/brand/*
 ├── data/      campus_customs.db · products/*.jpg
 └── output/    harness.md · usability.md · design.md · app_check.html (+ app_check_images/) · audit_trail.json
-               bench/*.json · screens/*.png
 ```
 
 ---
@@ -358,7 +356,7 @@ The backend uses port 8001 because port 8000 was already taken by another local 
 
 - **Sessions:** after login or register, the server sets an `HttpOnly`, `SameSite=Lax` cookie (`cc_session`) holding `user_id.expiry` signed with HMAC-SHA256 using a server secret. The secret comes from `SESSION_SECRET`, or else from `backend/.session_secret`, which is generated on first run with permissions `0600`. Tampered or expired tokens are rejected, and JavaScript cannot read the cookie. Sessions last 7 days.
 - **Frontend:** `AuthProvider` (`frontend/src/auth.tsx`) holds the current user. When someone is logged in, the nav bar replaces Log In / Create Account with "Hi, *first name*" and Log Out.
-- **Create account form:** first name, last name, email, password, and confirm password. A live checklist shows the required rules (8+ characters, a number, a special character), and a four-bar **Password Strength** meter rates the password as Too weak, Weak, Fair, Good, or Strong. The rating rewards length and mixed character types and penalizes repeats and common words such as "password" or "yale". The button stays disabled until the rules pass and both passwords match. The server enforces the same rules (`auth.password_problems`), so bypassing the UI does not get around them.
+- **Create account form:** first name, last name, email, password, and confirm password. A live checklist shows the required rules (8+ characters, a number, a special character), and a four-bar **Password Strength** meter rates the password as Too weak, Weak, Fair, Good, or Strong. The rating rewards length and mixed character types and penalizes repeats and common words such as "password" or "yale". The button stays disabled until the rules pass and both passwords match. The server enforces the same rules (`tools.password_problems`), so bypassing the UI does not get around them.
 - **Log in form:** email and password.
 
 ### What is stored for a user (`users` table)
@@ -405,7 +403,7 @@ The API only ever returns `id`, `first_name`, `last_name`, and `email` (`UserPub
 | `agent.py` | Agent wiring. It loads the prompt and model, registers the tools, adds per-request shopper context, and exposes `run_chat()`. It also works as a CLI: `../.venv/bin/python agent.py "question"`. |
 | `tools.py` | The agent tools (`search_products`, `get_product_details`), the shared database helpers the product routes also use, chat-history helpers, and `build_model()`. |
 | `models.py` | Every Pydantic / PydanticAI type: catalogue, account, and chat models. |
-| `auth.py` | Password hashing and session tokens from Problem 4. |
+| *(accounts)* | Password hashing and session tokens from Problem 4. These were first in `auth.py` and later merged into the "Accounts" section of `tools.py`, so `backend/` matches the required layout. |
 
 Run it from `backend/` with `uvicorn main:app --reload --port 8000`. Imports are plain module imports (`from models import …`), matching the HW3 layout. This replaces the Problem 3 command that used port 8001, and the Vite proxy now targets port 8000.
 
@@ -730,7 +728,7 @@ The chat widget now also renders `**bold**`, used in older saved messages, as bo
 
 ## Problem 9 — Usability improvements
 
-The full write-up, with before/after measurements, is in [`output/usability.md`](usability.md), and the benchmark is [`backend/benchmark.py`](../backend/benchmark.py). Changes to the agent's wiring worth knowing here:
+The full write-up, with before/after measurements, is in [`output/usability.md`](usability.md), measured with a development benchmark that isn't included in the submitted repo. Changes to the agent's wiring worth knowing here:
 
 - **The prompt is passed as `instructions=`, not `system_prompt=`.** PydanticAI omits `system_prompt` whenever `message_history` is passed, so before this fix every follow-up turn ran without `prompts/prompt.md`. The static prompt comes first and the per-message "Current context" is appended after it, which keeps the long prefix cacheable.
 - **`CurrentProduct` is now a database snapshot:** price, colors, description, and `stock_by_size`, read for each message and injected into the context. `AgentDeps.__post_init__` records those numbers as "seen" for the price/quantity validator.
@@ -753,7 +751,7 @@ This was a visual redesign: Yale identity colors and fonts, scroll-driven motion
 
 ## Problem 11 — Site testing (app check)
 
-The live-site test report is in [`output/app_check.html`](app_check.html), with screenshots in `output/app_check_images/` and the raw log in `output/app_check_log.json`. One reliability fix came out of it: `run_chat` now makes up to 3 attempts on transient TLS or connection errors, with 0.4 s and 0.8 s back-offs, and rebuilds the agent before the last attempt so it gets a fresh HTTP connection pool. The Problem 9 single immediate retry reused the broken connection and failed.
+The live-site test report is in [`output/app_check.html`](app_check.html), with screenshots in `output/app_check_images/`. One reliability fix came out of it: `run_chat` now makes up to 3 attempts on transient TLS or connection errors, with 0.4 s and 0.8 s back-offs, and rebuilds the agent before the last attempt so it gets a fresh HTTP connection pool. The Problem 9 single immediate retry reused the broken connection and failed.
 
 ## Problem 12 — Audit trail, safety, finish harness
 
