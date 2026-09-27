@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Campus Customs: App Check (Problem 11)</title>
+<style>
+  :root { --blue: #00356b; --blue2: #286dc0; --ink: #222; --muted: #5f5a55; --line: #e4e1dc; --paper: #faf8f5; --ok: #1f7a3a; --bad: #b00020; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background: var(--paper); line-height: 1.55; }
+  header { background: linear-gradient(150deg, var(--blue), #001a36); color: #fff; padding: 44px 24px 36px; }
+  header .inner, main { max-width: 1080px; margin: 0 auto; }
+  header h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 2.3rem; margin: 0 0 8px; }
+  header p { margin: 4px 0; color: rgba(255,255,255,.85); }
+  .toc { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .toc a { color: #fff; text-decoration: none; border: 1px solid rgba(255,255,255,.4); border-radius: 999px; padding: 6px 14px; font-size: .92rem; }
+  .toc a:hover { background: rgba(255,255,255,.12); }
+  main { padding: 28px 24px 70px; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 0 0 34px; }
+  .summary div { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .summary b { display: block; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 4px; }
+  section.check { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; margin-bottom: 30px; box-shadow: 0 1px 2px rgba(0,26,54,.05); }
+  h2 { font-family: Georgia, "Times New Roman", serif; color: var(--blue); font-size: 1.65rem; margin: 0 0 6px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .pass { font-family: -apple-system, "Segoe UI", sans-serif; font-size: .8rem; font-weight: 700; background: #e6f4ea; color: var(--ok); border: 1px solid #b7dfc3; border-radius: 999px; padding: 3px 10px; letter-spacing: .05em; }
+  .fixed { background: #fff4d6; color: #8a5a00; border-color: #f1d58a; }
+  h3 { font-size: 1rem; margin: 22px 0 8px; color: var(--ink); }
+  figure { margin: 16px 0 8px; }
+  figure a { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  figure img { display: block; width: 100%; height: auto; }
+  figcaption { font-size: .95rem; color: var(--ink); background: #f3f7fd; border-left: 4px solid var(--blue2); padding: 10px 14px; margin-top: 10px; border-radius: 0 8px 8px 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; margin-top: 6px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f6f4f0; font-weight: 700; }
+  td.ok { color: var(--ok); font-weight: 700; }
+  code { background: #f1efeb; padding: 1px 6px; border-radius: 5px; font-size: .88em; }
+  header code { background: rgba(255,255,255,.14); color: #fff; }
+  .qa { background: #faf9f7; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  .qa p { margin: 4px 0; }
+  .muted { color: var(--muted); font-size: .92rem; }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: .88rem; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="inner">
+    <h1>Campus Customs: Live App Check</h1>
+    <p>Problem 11 · Tested on the running site (React frontend <code>localhost:5173</code> → FastAPI <code>localhost:8000</code> → <code>data/campus_customs.db</code>).</p>
+    <p>Sunday, September 27, 2026, in headless Chrome at 1600×1000, browsing as a guest. Guest chats are never saved, so the database was not modified (<code>chat_messages</code> stayed at 22 rows).</p>
+    <nav class="toc">
+      <a href="#check1">1 · Inventory check</a>
+      <a href="#check2">2 · Search-result cards</a>
+      <a href="#check3">3 · Problem 9 usability feature</a>
+      <a href="#findings">Findings</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="summary">
+    <div><b>Check 1</b>Dan's stock and price answers match the database exactly ✅</div>
+    <div><b>Check 2</b>"What hoodies do you have?" puts all 27 hoodie cards on the page ✅</div>
+    <div><b>Check 3</b>Smart search + filters: "hoodies" + Navy + Size M = 19 results, all verified ✅</div>
+    <div><b>Found &amp; fixed</b>One transient network error surfaced to the shopper; the retry logic was hardened ⚠️→✅</div>
+  </div>
+
+  <!-- ============================ CHECK 1 ============================ -->
+  <section class="check" id="check1">
+    <h2>1. Chat checks an item's inventory level <span class="pass">PASS</span></h2>
+    <p class="muted">Goal: Dan must answer stock and price questions honestly, from the database, never inventing numbers.</p>
+
+    <div class="qa">
+      <p><b>Page:</b> Basic Hoodie Big Yale (<code>/products/basic-hoodie-big-yale</code>)</p>
+      <p><b>Shopper asked:</b> "How many of these are left in XL, and how much is it?"</p>
+      <p><b>Dan replied:</b> "There are 2 left in XL, and it's $68."</p>
+    </div>
+    <figure>
+      <a href="app_check_images/inventory.png" target="_blank"><img src="app_check_images/inventory.png" alt="Dan answering that 2 are left in XL at $68, next to the product page's size grid" /></a>
+      <figcaption>
+        <b>What this proves:</b> Dan understood "these" as the product on screen and answered with the exact XL quantity (2) and price ($68). Both numbers match the database and the page's own size grid ("XL: Only 2 left", "$68.00"). The product card under the reply is built from the database, not typed by the model.
+      </figcaption>
+    </figure>
+
+    <h3>Database check (queried directly with <code>sqlite3</code>)</h3>
+    <table>
+      <tr><th>Product</th><th>catalogue.price</th><th>inventory by size</th><th>Dan said</th><th></th></tr>
+      <tr><td>Basic Hoodie Big Yale</td><td>$68.00</td><td>XS 15 · S 5 · M 5 · L 8 · <b>XL 2</b> · XXL 25</td><td>"2 left in XL … $68"</td><td class="ok">match</td></tr>
+      <tr><td>Ice Hockey Left Chest Hoodie</td><td>$68.00</td><td>XS 20 · S 8 · M 0 · <b>L 0</b> · XL 0 · XXL 25</td><td>"out of stock in L … available in XS, S, and XXL"</td><td class="ok">match</td></tr>
+    </table>
+
+    <div class="qa">
+      <p><b>Honesty when stock is zero:</b> on the Ice Hockey Left Chest Hoodie page the shopper asked "Do you have this in L?"</p>
+      <p><b>Dan replied:</b> "Sorry, this hoodie is out of stock in L. It is available in XS, S, and XXL."</p>
+    </div>
+    <figure>
+      <a href="app_check_images/inventory_out_of_stock.png" target="_blank"><img src="app_check_images/inventory_out_of_stock.png" alt="Dan saying the hoodie is out of stock in L, with an Out of stock · L banner on the chat card" /></a>
+      <figcaption>
+        <b>What this proves:</b> when the database shows 0, Dan says so plainly, lists exactly the sizes that have stock, and doesn't promise anything. The chat card shows an "Out of stock · L" ribbon (from Problem 6), and the page's L and XL buttons are struck through, so the page and the chat agree.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================ CHECK 2 ============================ -->
+  <section class="check" id="check2">
+    <h2>2. Dynamic search-result cards after a category question <span class="pass">PASS</span></h2>
+    <p class="muted">Goal: a category question in chat should put matching product cards on the website, and those cards should still open the single-item page.</p>
+
+    <div class="qa">
+      <p><b>Started on:</b> Home (<code>/</code>). <b>Shopper asked:</b> "What hoodies do you have?"</p>
+      <p><b>Dan replied:</b> "We have 27 hoodies, ranging from $45 to $88, and all currently have stock. I pulled them up for you…"</p>
+    </div>
+    <figure>
+      <a href="app_check_images/search_results.png" target="_blank"><img src="app_check_images/search_results.png" alt="The Products page showing a 'Dan found these for you: Hoodies, 27 matches' header and hoodie cards, with the chat reply" /></a>
+      <figcaption>
+        <b>What this proves:</b> the chat reply updated the website. The app moved to <code>/products</code> and rendered a "Dan found these for you · Hoodies · 27 matches" header with <b>27 product cards</b> (image, name, price, short description, and color swatches). The chat shows a "27 results for 'Hoodies' on the page →" link and refinement chips. The API response carried <code>page_results: {title: "Hoodies", total_matches: 27}</code>. The database agrees: 27 hoodie-type products, priced from $45 to $88, none sold out.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <a href="app_check_images/search_result_detail.png" target="_blank"><img src="app_check_images/search_result_detail.png" alt="Detail page for the Brooks Brothers Double Knit Full Zip Hoodie Yale opened from a chat result card" /></a>
+      <figcaption>
+        <b>What this proves:</b> cards that Dan put on the page still work like normal cards. Clicking the second result opened <code>/products/brooks-brothers-double-knit-full-zip-hoodie-yale</code>, the Problem 3 single-item page, with the large image, $88.00, the full description, colors, and per-size stock. The "← Back to 'Hoodies'" link returns to the same results.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================ CHECK 3 ============================ -->
+  <section class="check" id="check3">
+    <h2>3. Problem 9 usability feature: smart search + filters <span class="pass">PASS</span></h2>
+    <p class="muted">Goal: show that a Problem 9 improvement works in the running app. Before Problem 9, typing "hoodies" returned <b>0 results</b>, because the search only matched the exact text typed, and there was no way to filter by color or size.</p>
+
+    <figure>
+      <a href="app_check_images/usability_filters.png" target="_blank"><img src="app_check_images/usability_filters.png" alt="Products page with 'hoodies' typed, Navy and Size M selected, sorted by price, showing 19 of 102 products" /></a>
+      <figcaption>
+        <b>What this proves:</b> pressing <code>/</code> jumped to the search box. Typing <b>"hoodies"</b> (plural) now finds <b>27</b> items, and choosing <b>Navy</b> + <b>Size M in stock</b> + <b>Price: low to high</b> narrowed it to <b>19 of 102 products</b>, cheapest first ($45, $45, $68…). The category chips updated their live counts (Hoodies 19, others 0). The filters are saved in the URL (<code>/products?q=hoodies&amp;color=Navy&amp;size=M&amp;sort=price_asc</code>), so Back and reload keep them.
+      </figcaption>
+    </figure>
+
+    <h3>Verification</h3>
+    <table>
+      <tr><th>Step</th><th>Result count shown</th></tr>
+      <tr><td>Products page loaded</td><td>102 products</td></tr>
+      <tr><td>Typed "hoodies"</td><td>27 of 102 (was 0 before Problem 9)</td></tr>
+      <tr><td>+ Navy, + Size M in stock, sorted by price</td><td>19 of 102</td></tr>
+      <tr><td>Cross-check: fetched <code>/api/products</code> and verified every one of the 19 shown items</td><td class="ok">19/19 have navy in their colors and M in stock (0 mismatches)</td></tr>
+    </table>
+  </section>
+
+  <!-- ============================ FINDINGS ============================ -->
+  <section class="check" id="findings">
+    <h2>Findings from this test run <span class="pass fixed">FOUND &amp; FIXED</span></h2>
+    <p>While retaking the out-of-stock screenshot, one chat request failed and Dan showed <i>"The chat assistant is having trouble right now."</i> The server log showed a transient TLS error from the model connection (<code>ssl.SSLError: BAD_RECORD_MAC</code>). The Problem 9 code retried once, <i>immediately</i>, and that retry reused the same broken connection and failed too.</p>
+    <p><b>Fix</b> (<code>backend/agent.py</code> → <code>run_chat</code>): up to 3 attempts with short back-offs (0.4 s, 0.8 s), and before the last attempt the agent is rebuilt so it gets a fresh HTTP connection pool. A simulated test (two forced TLS failures, then success) now returns a normal reply. The re-run of both inventory checks passed with no errors (the screenshots above are from that re-run).</p>
+    <p class="muted">Raw test log (questions, replies, API payloads, counts): <a href="app_check_log.json">app_check_log.json</a>.</p>
+  </section>
+</main>
+
+<footer>
+  Screenshots are in <code>output/app_check_images/</code>: inventory.png · inventory_out_of_stock.png · search_results.png · search_result_detail.png · usability_filters.png. Click any screenshot to open it full size.
+</footer>
+</body>
+</html>

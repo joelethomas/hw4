@@ -1,0 +1,27 @@
+# Local data pack (not in git): place it at data/ — see README.md
+data/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+backend/.session_secret
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node / build
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Runtime files
+output/audit_trail.json.lock
+output/audit_trail.unreadable-*.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
